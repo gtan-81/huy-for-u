@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Story App</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: #fdf2f8;
+      font-family: "Segoe UI", sans-serif;
+    }
+    .container {
+      border: 2px solid black;
+      padding: 20px;
+      width: 350px;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 4px 6px 12px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    label {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 12px;
+      padding: 6px 12px;
+      font-size: 14px;
+      font-weight: bold;
+      width: fit-content;
+    }
+    input, textarea {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+    textarea {
+      border-radius: 24px;
+      height: 150px;
+      resize: none;
+    }
+    .button {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 20px;
+      padding: 10px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+      transition: 0.25s;
+      width: fit-content;
+      align-self: flex-end;
+    }
+    .button:hover {
+      background: #ffb6c1;
+      transform: translateY(-2px);
+      box-shadow: 2px 4px 8px rgba(0,0,0,0.15);
+    }
+    #feedPage {
+      width: 400px;
+      display: none;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .story-list {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 30px;
+      padding: 20px;
+      flex: 1;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    .story-item {
+      background: white;
+      border: 1px solid black;
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .story-username {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 12px;
+      padding: 4px 8px;
+      font-weight: bold;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+    .story-text {
+      background: pink;
+      border: 1px solid black;
+      border-radius: 12px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Page -->
+  <div class="container" id="loginPage">
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" placeholder="Enter username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password">
+    </div>
+    <div class="button" onclick="goToStory()">Make Account / Sign In</div>
+  </div>
+
+  <!-- Story Page -->
+  <div class="container" id="storyPage" style="display:none;">
+    <label for="story">Write your story</label>
+    <textarea id="story" placeholder="Type your story here..."></textarea>
+    <div class="button" onclick="sendStory()">Send</div>
+    <div class="button" onclick="goToFeed()">Go to Feed</div>
+  </div>
+
+  <!-- Feed Page -->
+  <div class="container" id="feedPage">
+    <div class="button" onclick="backToStory()">Write Story</div>
+    <div class="story-list" id="storyList">
+      <!-- Stories appear here -->
+    </div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
+
+  <script>
+    // Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyCeWF6y82vWkhsfd3l7UKYSMDkBTqFk_ig",
+      authDomain: "message-7d6fa.firebaseapp.com",
+      projectId: "message-7d6fa",
+      storageBucket: "message-7d6fa.firebasestorage.app",
+      messagingSenderId: "528297062053",
+      appId: "1:528297062053:web:06f29f48054261447fa74c",
+      measurementId: "G-N557TBD8ZW"
+    };
+
+    // Init Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let currentUser = "";
+    const storyList = document.getElementById("storyList");
+
+    window.onload = async function() {
+      const savedUser = localStorage.getItem("currentUser");
+      if(savedUser) {
+        currentUser = savedUser;
+        document.getElementById("loginPage").style.display = "none";
+        document.getElementById("storyPage").style.display = "flex";
+      }
+      loadStories();
+    };
+
+    function goToStory() {
+      const username = document.getElementById("username").value.trim();
+      if(!username) {
+        alert("Please enter a username.");
+        return;
+      }
+      currentUser = username;
+      localStorage.setItem("currentUser", currentUser);
+      document.getElementById("loginPage").style.display = "none";
+      document.getElementById("storyPage").style.display = "flex";
+    }
+
+    async function sendStory() {
+      const storyText = document.getElementById("story").value.trim();
+      if(!storyText) {
+        alert("Please write something before sending!");
+        return;
+      }
+
+      // Save story to Firestore
+      await db.collection("stories").add({
+        username: currentUser,
+        text: storyText,
+        timestamp: new Date().toISOString()
+      });
+
+      document.getElementById("story").value = "";
+      goToFeed();
+      loadStories();
+    }
+
+    async function loadStories() {
+      storyList.innerHTML = "";
+      const querySnapshot = await db.collection("stories").orderBy("timestamp", "desc").get();
+      querySnapshot.forEach(doc => {
+        const story = doc.data();
+        addStoryToDOM(story.username, story.text);
+      });
+    }
+
+    function addStoryToDOM(username, text) {
+      const storyItem = document.createElement("div");
+      storyItem.classList.add("story-item");
+
+      const usernameTag = document.createElement("div");
+      usernameTag.classList.add("story-username");
+      usernameTag.innerText = username;
+
+      const storyContent = document.createElement("div");
+      storyContent.classList.add("story-text");
+      storyContent.innerText = text;
+
+      storyItem.appendChild(usernameTag);
+      storyItem.appendChild(storyContent);
+      storyList.appendChild(storyItem);
+    }
+
+    function backToStory() {
+      document.getElementById("feedPage").style.display = "none";
+      document.getElementById("storyPage").style.display = "flex";
+    }
+
+    function goToFeed() {
+      document.getElementById("storyPage").style.display = "none";
+      document.getElementById("feedPage").style.display = "flex";
+    }
+  </script>
+</body>
+</html>
